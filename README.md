@@ -95,11 +95,18 @@ swift android wrap AndroidKit android.widget.Toast android.net.Uri
 swift android wrap FabricKit --cp minecraft.jar:brigadier.jar net.minecraft.client.gui.screens.Screen
 ```
 
+## Not only Android
+
+The generator and the `Swan` library have no Android in them. A Fabric mod uses the same plugin for
+a Swift subclass of Minecraft's `Screen`, with Gradle compiling the generated Java from
+`.build/plugins/outputs/<package>/<target>/destination/SwiftAndroidPlugin/swan-java`.
+
 ## Limits today
 
 - Overrides are found with regular expressions: parameters that are closures, tuples or
   two-argument generics are not understood.
-- A Swift subclass gets the Java superclass's no-argument constructor only.
+- A Swift subclass repeats the constructors its wrapper declares. swift-java 0.7.0 does not wrap
+  protected constructors or generic methods, so those are declared by hand (see FabricKit).
 - Abstract Java methods cannot be overridden yet (the generated Java calls `super`).
 - A Swift object made for a Java object is never freed.
 - The APK carries the whole Swift runtime uncompressed (about 125 MB) and one architecture.

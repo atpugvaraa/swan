@@ -1,4 +1,8 @@
-# Swan - Swift on Android Tooling
+<p align="center">
+  <img src="docs/swan-logo.svg" alt="swan" width="320">
+</p>
+
+# swan - Swift Android Tooling
 
 `swift android <verb>`: Android as a keyword in the normal Swift workflow. There is no separate CLI
 to learn; the `swift` driver runs `swift-android` from the toolchain's `usr/bin`, the same way it

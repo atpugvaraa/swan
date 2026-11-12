@@ -7,7 +7,9 @@ let usage = """
           Cross-compile the package in the current directory for Android.
 
       run [--arch A] [--api N] [swift build options] <product> [arguments]
-          Build an executable product, push it to the attached device or emulator, and run it.
+          Build a product and run it on the attached device or emulator. An executable runs from
+          the shell with the arguments. A dynamic library is packaged with the package's Android/
+          directory (AndroidManifest.xml, java/, res/) into an APK, installed and launched.
           Build options that take a value must be written --option=value.
 
       install
@@ -153,18 +155,24 @@ func runOnDevice(_ parsed: Invocation) throws {
     var libraries = ["\(sysroot)/usr/lib/\(ndkLibraryDirectory(arch))/libc++_shared.so"]
     libraries += sharedLibraries(in: products)
 
+    let isStatic = invocation.buildArguments.contains("--static-swift-stdlib")
+    let runtime = isStatic ? [] : sharedLibraries(in: try sdkPath("swiftResourcesPath", sdk: sdk, triple: triple) + "/android")
+
+    // A library product is an app; an executable product runs from the shell.
+    if !FileManager.default.fileExists(atPath: "\(products)/\(product)") {
+        return try runApp(product: product, abi: abi(forArch: arch), api: invocation.api, libraries: libraries + runtime, products: products)
+    }
+
     let home = "/data/local/tmp/swift-android"
     let directory = "\(home)/\(product)"
     var libraryPath = directory
     try run(["adb", "shell", "mkdir", "-p", directory])
-
-    if !invocation.buildArguments.contains("--static-swift-stdlib") {
-        // The Swift runtime is about 160 MB; --sync makes this a one-time cost per SDK and device.
-        let runtime = "\(home)/runtime-\(sdk)-\(arch)"
-        let resources = try sdkPath("swiftResourcesPath", sdk: sdk, triple: triple)
-        try run(["adb", "shell", "mkdir", "-p", runtime])
-        try run(["adb", "push", "--sync"] + sharedLibraries(in: "\(resources)/android") + [runtime], quiet: true)
-        libraryPath += ":\(runtime)"
+    if !runtime.isEmpty {
+        // The Swift runtime is about 110 MB; --sync makes this a one-time cost per SDK and device.
+        let shared = "\(home)/runtime-\(sdk)-\(arch)"
+        try run(["adb", "shell", "mkdir", "-p", shared])
+        try run(["adb", "push", "--sync"] + runtime + [shared], quiet: true)
+        libraryPath += ":\(shared)"
     }
     try run(["adb", "push", "--sync", "\(products)/\(product)"] + libraries + [directory], quiet: true)
 

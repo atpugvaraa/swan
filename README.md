@@ -81,6 +81,13 @@ name the manifest uses. The Java object keeps its Swift object alive, so stored 
 
 A Swift closure becomes a Java interface with `SomeInterface.implemented { method, arguments in … }`.
 
+## Calling Swift from Java
+
+Add swift-java's `JExtractSwiftPlugin` and a `swift-java.config` to a target, and its public Swift
+API becomes Java classes. `swift android run` compiles those bindings, and the SwiftKit classes
+they need, straight into the APK: nothing is published to Maven and there is no Gradle plugin.
+See [Examples/HelloExtract](Examples/HelloExtract).
+
 ## Wrapping more of Android, or any jar
 
 ```bash
@@ -97,4 +104,5 @@ swift android wrap FabricKit --cp minecraft.jar:brigadier.jar net.minecraft.clie
 - A Swift object made for a Java object is never freed.
 - The APK carries the whole Swift runtime uncompressed (about 125 MB) and one architecture.
 - `print` goes nowhere in an app; there is no logcat bridge yet.
-- No AndroidManifest generation, no resources beyond `res/`, no Kotlin, no release signing.
+- Kotlin sources are not compiled (Java only): there is no `kotlinc` step.
+- No AndroidManifest generation, no `.aar` output, no release signing.

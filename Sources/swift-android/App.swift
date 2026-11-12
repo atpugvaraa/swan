@@ -66,6 +66,14 @@ func runApp(product: String, abi: String, api: String, libraries: [String], prod
     if let newest = generated.max(by: { modified($0) < modified($1) }) {
         java += files(under: newest, withExtension: "java")
     }
+    // Java bindings swift-java's JExtractSwiftPlugin wrote for the package's Swift API, and the
+    // SwiftKit classes they are built on, compiled from source: nothing to publish to Maven first.
+    let extracted = (output(["find", ".build/plugins", "-type", "d", "-path", "*JExtractSwiftPlugin/src/generated/java"]) ?? "")
+        .split(separator: "\n").map(String.init)
+    if !extracted.isEmpty {
+        for directory in extracted { java += files(under: directory, withExtension: "java") }
+        java += files(under: ".build/checkouts/swift-java/SwiftKitCore/src/main/java", withExtension: "java")
+    }
     if !java.isEmpty {
         try fm.createDirectory(atPath: "\(stage)/swan", withIntermediateDirectories: true)
         try swanProxyJava.write(toFile: "\(stage)/swan/SwanProxy.java", atomically: true, encoding: .utf8)

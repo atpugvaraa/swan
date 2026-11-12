@@ -21,6 +21,7 @@ let package = Package(
         .target(
             name: "SwanAndroid",
             dependencies: [.product(name: "SwiftJava", package: "swift-java")],
+            exclude: ["swift-java.config"],  // the classes `swift android wrap SwanAndroid` generates
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),
     ]

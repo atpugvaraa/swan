@@ -12,6 +12,11 @@ let usage = """
           directory (AndroidManifest.xml, java/, res/) into an APK, installed and launched.
           Build options that take a value must be written --option=value.
 
+      wrap <target> [--cp JAR]... [java.class ...]
+          Write Swift wrappers for Java classes into Sources/<target>/Generated. New classes are
+          added to Sources/<target>/swift-java.config; with none named, the list is regenerated.
+          Classes come from the newest installed android.jar, or from --cp when given.
+
       install
           Link this tool into the active toolchain, so `swift android` works.
 
@@ -213,6 +218,7 @@ enum SwiftAndroid {
             case "build": _ = try build(Invocation(Array(arguments.dropFirst()), takesProduct: false))
             case "run": try runOnDevice(Invocation(Array(arguments.dropFirst()), takesProduct: true))
             case "install": try install()
+            case "wrap": try wrap(Array(arguments.dropFirst()))
             case "generate": try generate(Array(arguments.dropFirst()))  // run by the build plugin
             default: print(usage)
             }

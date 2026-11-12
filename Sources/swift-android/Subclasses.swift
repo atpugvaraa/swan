@@ -73,7 +73,9 @@ func javaType(_ swiftType: String, wrappers: [String: String]) throws -> String 
         "Int64": "long", "Float": "float", "Double": "double", "String": "java.lang.String",
     ]
     if let primitive = primitives[swiftType] { return primitive }
-    let name = swiftType.trimmingCharacters(in: ["?", "!"])
+    // ponytail: nested types are looked up by their last name (`View.OnClickListener` as
+    // `OnClickListener`), so two nested types with one name collide. Track the enclosing type when they do.
+    let name = String(swiftType.trimmingCharacters(in: ["?", "!"]).split(separator: ".").last ?? "")
     guard let java = wrappers[name] else {
         throw Failure(message: "cannot pass the Swift type \(swiftType) to Java: no @JavaClass wrapper named \(name) was found")
     }

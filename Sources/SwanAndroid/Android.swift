@@ -10,7 +10,40 @@ open class Context: JavaObject {}
 open class Bundle: JavaObject {}
 
 @JavaClass("android.view.View")
-open class View: JavaObject {}
+open class View: JavaObject {
+    @JavaMethod
+    open func setOnClickListener(_ listener: OnClickListener?)
+
+    /// Calls `action` when the view is tapped.
+    public func onClick(_ action: @escaping (View?) -> Void) {
+        setOnClickListener(.implemented(environment: javaEnvironment) { _, arguments in
+            action(arguments.first??.as(View.self))
+            return nil
+        })
+    }
+}
+
+@JavaInterface("android.view.View$OnClickListener")
+public struct OnClickListener {
+    @JavaMethod
+    public func onClick(_ view: View?)
+}
+
+@JavaClass("android.view.ViewGroup")
+open class ViewGroup: View {
+    @JavaMethod
+    open func addView(_ child: View?)
+}
+
+@JavaClass("android.widget.LinearLayout")
+open class LinearLayout: ViewGroup {
+    @JavaMethod
+    @_nonoverride public convenience init(_ context: Context?, environment: JNIEnvironment? = nil)
+
+    /// 0 is horizontal, 1 is vertical.
+    @JavaMethod
+    open func setOrientation(_ orientation: Int32)
+}
 
 @JavaClass("android.widget.TextView")
 open class TextView: View {
@@ -42,4 +75,10 @@ open class Activity: Context {
 
     @JavaMethod
     open func setContentView(_ view: View?)
+}
+
+@JavaClass("android.widget.Button")
+open class Button: TextView {
+    @JavaMethod
+    @_nonoverride public convenience init(_ context: Context?, environment: JNIEnvironment? = nil)
 }

@@ -67,6 +67,11 @@ func runApp(product: String, abi: String, api: String, libraries: [String], prod
         java += files(under: newest, withExtension: "java")
     }
     if !java.isEmpty {
+        try fm.createDirectory(atPath: "\(stage)/swan", withIntermediateDirectories: true)
+        try swanProxyJava.write(toFile: "\(stage)/swan/SwanProxy.java", atomically: true, encoding: .utf8)
+        java.append("\(stage)/swan/SwanProxy.java")
+    }
+    if !java.isEmpty {
         try run(["javac", "--release", "17", "-Xlint:-options", "-classpath", androidJar, "-d", "\(stage)/classes"] + java)
         try run(["\(tools)/d8", "--lib", androidJar, "--min-api", api, "--output", stage]
             + files(under: "\(stage)/classes", withExtension: "class"))
@@ -108,3 +113,43 @@ func runApp(product: String, abi: String, api: String, libraries: [String], prod
 func abi(forArch arch: String) -> String {
     ["aarch64": "arm64-v8a", "armv7": "armeabi-v7a"][arch] ?? arch
 }
+
+/// The Java half of `AnyJavaObject.implemented(by:)` in SwanAndroid: one handler class behind
+/// every Swift closure that stands in for a Java interface.
+let swanProxyJava = """
+    package swan;
+
+    import java.lang.reflect.InvocationHandler;
+    import java.lang.reflect.Method;
+    import java.lang.reflect.Proxy;
+
+    public final class SwanProxy implements InvocationHandler {
+        /// The Swift closure, retained until this object is collected.
+        private final long closure;
+
+        private SwanProxy(long closure) { this.closure = closure; }
+
+        public static Object make(Class<?> type, long closure) {
+            return Proxy.newProxyInstance(type.getClassLoader(), new Class<?>[] { type }, new SwanProxy(closure));
+        }
+
+        @Override
+        public Object invoke(Object proxy, Method method, Object[] arguments) {
+            if (method.getDeclaringClass() == Object.class) {
+                switch (method.getName()) {
+                    case "equals": return proxy == arguments[0];
+                    case "hashCode": return System.identityHashCode(proxy);
+                    default: return "SwanProxy@" + Long.toHexString(closure);
+                }
+            }
+            return call(closure, method.getName(), arguments);
+        }
+
+        private static native Object call(long closure, String method, Object[] arguments);
+        private static native void release(long closure);
+
+        @Override
+        protected void finalize() { release(closure); }
+    }
+
+    """

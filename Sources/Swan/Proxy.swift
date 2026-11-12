@@ -3,8 +3,8 @@ import SwiftJava
 // A Swift closure as a Java interface.
 //
 // Java's own java.lang.reflect.Proxy makes an object that implements any interface and sends
-// every call to one handler. The handler is swan.SwanProxy (Java, added to each app by
-// swift android), which passes the call to the Swift closure it holds.
+// every call to one handler. The handler is swan.SwanProxy (Java, written next to the generated
+// subclasses by SwanPlugin), which passes the call to the Swift closure it holds.
 
 @JavaClass("swan.SwanProxy")
 open class SwanProxy: JavaObject {}

@@ -56,5 +56,25 @@ import Testing
     #expect(java.contains("public class MainActivity extends android.app.Activity"))
     #expect(java.contains("public boolean onKeyDown(int a0, android.os.Bundle a1)"))
     #expect(java.contains("if (swanIn1) { return super.onKeyDown(a0, a1); }"))
-    #expect(swiftThunks(found, package: "my_app").contains(#"@_cdecl("Java_my_1app_MainActivity_swan0")"#))
+    #expect(try swiftThunks(found, package: "my_app").contains(#"@_cdecl("Java_my_1app_MainActivity_swan0")"#))
+}
+
+@Test func repeatsTheSuperclassConstructors() throws {
+    let wrapperSource = """
+        @JavaClass("net.minecraft.Screen")
+        open class Screen: JavaObject {
+          @JavaMethod
+          @_nonoverride public convenience init(_ title: Component?, _ depth: Int32, environment: JNIEnvironment? = nil)
+          @JavaMethod open func tick()
+        }
+        @JavaInterface("net.minecraft.Component") public struct Component {}
+        """
+    #expect(wrapperConstructors(in: wrapperSource) == ["Screen": [["Component?", "Int32"]]])
+    let wrappers = javaWrappers(in: wrapperSource)
+    var mine = javaSubclasses(in: "final class Mine: Screen { override func tick() {} }", wrappers: wrappers)[0]
+    mine.constructors = [["Component?", "Int32"]]
+    #expect(try javaStub(mine, package: "mod", library: "Mod", wrappers: wrappers)
+        .contains("public Mine(net.minecraft.Component a0, int a1) { super(a0, a1); }"))
+    let swift = try swiftThunks([mine], package: "mod", wrappers: wrappers)
+    #expect(swift.contains(#"SwanPeer.new("mod.Mine", "(Lnet/minecraft/Component;I)V", arguments, env)"#))
 }

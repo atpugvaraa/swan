@@ -9,8 +9,7 @@ final class MainActivity: Activity {
     override func onCreate(_ state: Bundle?) {
         super.onCreate(state)
 
-        let label = TextView(self)
-        label.setTextSize(24)
+        let label = CounterLabel(self)
         self.label = label
 
         let button = Button(self)
@@ -35,5 +34,18 @@ final class MainActivity: Activity {
 
     func update() {
         label?.setText("Hello from a Swift Activity.\nTaps: \(taps). Resumed \(resumes)×")
+    }
+}
+
+/// A Swift subclass that Swift itself creates: `CounterLabel(context)` makes the generated Java
+/// subclass, so Android calls the override below.
+final class CounterLabel: TextView {
+    var attached = 0
+
+    override func onAttachedToWindow() {
+        super.onAttachedToWindow()
+        attached += 1
+        setTextSize(24)
+        setText("attached \(attached)×, waiting for onResume")
     }
 }

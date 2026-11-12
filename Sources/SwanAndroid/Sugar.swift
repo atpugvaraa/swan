@@ -1,3 +1,4 @@
+@_exported import Swan
 @_exported import SwiftJava
 
 // What the generated wrappers in Generated/ cannot know: where a Swift String or closure fits.

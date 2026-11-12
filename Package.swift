@@ -9,6 +9,9 @@ let package = Package(
         .executable(name: "swift-android", targets: ["swift-android"]),
         // Add to a target's `plugins:` to subclass Java classes in Swift.
         .plugin(name: "SwanPlugin", targets: ["SwanPlugin"]),
+        // What generated code calls into. Every target that uses SwanPlugin depends on it.
+        .library(name: "Swan", targets: ["Swan"]),
+        // Swan plus wrappers for the Android API.
         .library(name: "SwanAndroid", targets: ["SwanAndroid"]),
     ],
     dependencies: [
@@ -19,8 +22,13 @@ let package = Package(
         .testTarget(name: "SwanTests", dependencies: ["swift-android"]),
         .plugin(name: "SwanPlugin", capability: .buildTool(), dependencies: ["swift-android"]),
         .target(
-            name: "SwanAndroid",
+            name: "Swan",
             dependencies: [.product(name: "SwiftJava", package: "swift-java")],
+            swiftSettings: [.swiftLanguageMode(.v5)]
+        ),
+        .target(
+            name: "SwanAndroid",
+            dependencies: ["Swan", .product(name: "SwiftJava", package: "swift-java")],
             exclude: ["swift-java.config"],  // the classes `swift android wrap SwanAndroid` generates
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),

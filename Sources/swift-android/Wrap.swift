@@ -67,10 +67,9 @@ func wrap(_ arguments: [String]) throws {
     try? fm.removeItem(atPath: generated)
     let result = capture([
         "\(bin)/swift-java", "wrap-java", "--swift-module", target, "--config", configPath,
-        "--cp", classpath.joined(separator: ":"),
         "--depends-on", "SwiftJava=\(checkout)/Sources/SwiftJava/swift-java.config",
         "-o", generated,
-    ])
+    ] + classpath.flatMap { $0.split(separator: ":") }.flatMap { ["--cp", String($0)] })  // one jar per --cp
     guard result.succeeded else { throw Failure(message: result.text) }
 
     // Methods are left out when a type they use is not wrapped. Say which classes would unlock the most.

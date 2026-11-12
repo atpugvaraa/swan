@@ -1,4 +1,4 @@
-import SwanAndroid
+import AndroidKit
 
 final class MainActivity: Activity {
     /// Swift state: it survives between callbacks because the Java object keeps this one alive.

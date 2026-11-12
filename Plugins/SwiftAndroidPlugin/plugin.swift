@@ -3,7 +3,7 @@ import PackagePlugin
 /// Lets a target subclass Java classes in Swift: runs `swift-android generate` over its sources
 /// and compiles the JNI entry points it writes into the target.
 @main
-struct SwanPlugin: BuildToolPlugin {
+struct SwiftAndroidPlugin: BuildToolPlugin {
     func createBuildCommands(context: PluginContext, target: Target) throws -> [Command] {
         guard let module = target as? SwiftSourceModuleTarget else { return [] }
         let sources = module.sourceFiles(withSuffix: "swift").map(\.url)

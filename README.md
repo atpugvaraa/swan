@@ -5,7 +5,7 @@ to learn; the `swift` driver runs `swift-android` from the toolchain's `usr/bin`
 runs `swift-build`. The Swift SDK for Android and swift-java are used as released.
 
 ```swift
-import SwanAndroid
+import AndroidKit
 
 final class MainActivity: Activity {
     var taps = 0
@@ -68,9 +68,9 @@ Add the plugin to the target:
 ```swift
 .target(
     name: "HelloActivity",
-    dependencies: [.product(name: "SwanAndroid", package: "swan")],
+    dependencies: [.product(name: "AndroidKit", package: "swan")],
     swiftSettings: [.swiftLanguageMode(.v5)],
-    plugins: [.plugin(name: "SwanPlugin", package: "swan")]
+    plugins: [.plugin(name: "SwiftAndroidPlugin", package: "swan")]
 )
 ```
 
@@ -91,7 +91,7 @@ See [Examples/HelloExtract](Examples/HelloExtract).
 ## Wrapping more of Android, or any jar
 
 ```bash
-swift android wrap SwanAndroid android.widget.Toast android.net.Uri
+swift android wrap AndroidKit android.widget.Toast android.net.Uri
 swift android wrap FabricKit --cp minecraft.jar:brigadier.jar net.minecraft.client.gui.screens.Screen
 ```
 

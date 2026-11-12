@@ -4,7 +4,7 @@ import SwiftJava
 //
 // Java's own java.lang.reflect.Proxy makes an object that implements any interface and sends
 // every call to one handler. The handler is swan.SwanProxy (Java, written next to the generated
-// subclasses by SwanPlugin), which passes the call to the Swift closure it holds.
+// subclasses by SwiftAndroidPlugin), which passes the call to the Swift closure it holds.
 
 @JavaClass("swan.SwanProxy")
 open class SwanProxy: JavaObject {}

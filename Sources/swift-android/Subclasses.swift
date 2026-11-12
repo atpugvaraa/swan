@@ -61,10 +61,11 @@ func javaWrappers(in source: String) -> [String: String] {
 
 /// Swift wrapper name to the constructors it wraps, from its `convenience init(...)` declarations.
 func wrapperConstructors(in source: String) -> [String: [[String]]] {
-    let wrapper = /@JavaClass\([^)]*\)\s*(?:(?:open|public|final)\s+)*class\s+(\w+)[^{]*\{/
+    // Extensions count too: that is where a constructor the generator left out is added by hand.
+    let wrapper = /(?:@JavaClass\([^)]*\)\s*(?:(?:open|public|final)\s+)*class|(?:^|\n)[ \t]*(?:public\s+)?extension)\s+(\w+)[^{\n]*\{/
     return Dictionary(source.matches(of: wrapper).map { match in
         (String(match.1), body(of: source, after: match.range.upperBound).matches(of: /convenience\s+init\(([^)]*)\)/).map { parameterTypes($0.1) })
-    }, uniquingKeysWith: { first, _ in first })
+    }, uniquingKeysWith: +)
 }
 
 /// The classes in `source` that subclass a wrapped Java class, with the methods they override.
@@ -175,7 +176,8 @@ func swiftThunks(_ subclasses: [JavaSubclass], package: String, imports: [String
             let symbol = "Java_\(jniEscaped(package))_\(jniEscaped(subclass.name))_swan\(index)"
             let declared = method.parameters.enumerated().map { ", _ a\($0): (\($1)).JNIType" }.joined()
             let passed = method.parameters.enumerated().map { "(\($1))(fromJNI: a\($0), in: env)" }.joined(separator: ", ")
-            let call = "SwanPeer.resolve(\(subclass.name).self, this, env).\(method.name)(\(passed))"
+            // Backticks, because a Java method may be named like a Swift keyword (Screen.init).
+            let call = "SwanPeer.resolve(\(subclass.name).self, this, env).`\(method.name)`(\(passed))"
             thunks += """
 
                 @_cdecl("\(symbol)")
@@ -237,7 +239,7 @@ func generate(_ arguments: [String]) throws {
         .map { try String(contentsOfFile: $0, encoding: .utf8) }
     for source in wrapperFiles + sources {
         wrappers.merge(javaWrappers(in: source)) { first, _ in first }
-        constructors.merge(wrapperConstructors(in: source)) { first, _ in first }
+        constructors.merge(wrapperConstructors(in: source), uniquingKeysWith: +)
     }
 
     var subclasses: [JavaSubclass] = [], imports: [String] = []

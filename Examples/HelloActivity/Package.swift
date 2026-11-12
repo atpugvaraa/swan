@@ -10,9 +10,9 @@ let package = Package(
     targets: [
         .target(
             name: "HelloActivity",
-            dependencies: [.product(name: "SwanAndroid", package: "swan")],
+            dependencies: [.product(name: "AndroidKit", package: "swan")],
             swiftSettings: [.swiftLanguageMode(.v5)],
-            plugins: [.plugin(name: "SwanPlugin", package: "swan")]
+            plugins: [.plugin(name: "SwiftAndroidPlugin", package: "swan")]
         )
     ]
 )

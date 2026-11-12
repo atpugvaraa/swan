@@ -4,7 +4,7 @@ import Foundation
 // Package.swift:
 //
 //     Android/AndroidManifest.xml   required
-//     Android/java/                 optional Java sources
+//     Android/java/                 optional Java sources (Swift subclasses of Java classes need none)
 //     Android/res/                  optional resources
 //
 // The APK is assembled with the Android SDK's own build tools. There is no Gradle project.
@@ -57,7 +57,15 @@ func runApp(product: String, abi: String, api: String, libraries: [String], prod
 
     // Java sources: javac to .class, d8 to classes.dex.
     var contents = ["lib"]
-    let java = files(under: "\(source)/java", withExtension: "java")
+    var java = files(under: "\(source)/java", withExtension: "java")
+    // Java subclasses the build plugin wrote for Swift classes. Other configurations leave their
+    // own copies behind, so take the one this build just wrote.
+    let generated = (output(["find", ".build", "-type", "d", "-name", "swan-java", "-not", "-path", "*/checkouts/*"]) ?? "")
+        .split(separator: "\n").map(String.init)
+    let modified = { (path: String) in (try? fm.attributesOfItem(atPath: path)[.modificationDate] as? Date) ?? .distantPast }
+    if let newest = generated.max(by: { modified($0) < modified($1) }) {
+        java += files(under: newest, withExtension: "java")
+    }
     if !java.isEmpty {
         try run(["javac", "--release", "17", "-Xlint:-options", "-classpath", androidJar, "-d", "\(stage)/classes"] + java)
         try run(["\(tools)/d8", "--lib", androidJar, "--min-api", api, "--output", stage]

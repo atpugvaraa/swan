@@ -213,6 +213,7 @@ enum SwiftAndroid {
             case "build": _ = try build(Invocation(Array(arguments.dropFirst()), takesProduct: false))
             case "run": try runOnDevice(Invocation(Array(arguments.dropFirst()), takesProduct: true))
             case "install": try install()
+            case "generate": try generate(Array(arguments.dropFirst()))  // run by the build plugin
             default: print(usage)
             }
         } catch let failure as Failure {

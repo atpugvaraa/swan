@@ -12,6 +12,10 @@ let usage = """
           directory (AndroidManifest.xml, java/, res/) into an APK, installed and launched.
           Build options that take a value must be written --option=value.
 
+      aar <product> [--arch A] [--api N] [swift build options]
+          Build a dynamic library product into <product>.aar, for a Gradle app to depend on:
+          the Swift libraries, and any Java the package has or generates. -c release strips them.
+
       wrap <target> [--cp JAR]... [java.class ...]
           Write Swift wrappers for Java classes into Sources/<target>/Generated. New classes are
           added to Sources/<target>/swift-java.config; with none named, the list is regenerated.
@@ -143,25 +147,38 @@ func build(_ invocation: Invocation) throws -> (sdk: String, triple: String, swi
     return (sdk, triple, swiftBuild)
 }
 
+/// What a build leaves for packaging.
+struct Built {
+    var product: String, arch: String, sdk: String, triple: String
+    var products: String  // the build's products directory
+    var libraries: [String]  // the package's .so files and libc++_shared.so
+    var runtime: [String]  // the Swift runtime's .so files; empty with --static-swift-stdlib
+}
+
+func buildProduct(_ invocation: Invocation) throws -> Built {
+    guard let product = invocation.product else { throw Failure(message: "name a product\n\n\(usage)") }
+    let arch = invocation.arch ?? "aarch64"
+    let (sdk, triple, swiftBuild) = try build(invocation)
+    guard let products = output(swiftBuild + ["--show-bin-path"]) else { throw Failure(message: "could not find the build products") }
+    let sysroot = try sdkPath("sdkRootPath", sdk: sdk, triple: triple)
+    let isStatic = invocation.buildArguments.contains("--static-swift-stdlib")
+    return Built(
+        product: product, arch: arch, sdk: sdk, triple: triple, products: products,
+        libraries: ["\(sysroot)/usr/lib/\(ndkLibraryDirectory(arch))/libc++_shared.so"] + sharedLibraries(in: products),
+        runtime: isStatic ? [] : sharedLibraries(in: try sdkPath("swiftResourcesPath", sdk: sdk, triple: triple) + "/android")
+    )
+}
+
 func runOnDevice(_ parsed: Invocation) throws {
     var invocation = parsed
-    guard let product = invocation.product else { throw Failure(message: "run needs a product name\n\n\(usage)") }
     guard output(["adb", "get-state"]) == "device" else {
         throw Failure(message: "no Android device or emulator is attached (adb get-state). Start one: emulator -avd <name>")
     }
     if invocation.arch == nil {
         invocation.arch = output(["adb", "shell", "getprop", "ro.product.cpu.abi"]).flatMap(arch(forABI:))
     }
-    let arch = invocation.arch ?? "aarch64"
-    let (sdk, triple, swiftBuild) = try build(invocation)
-
-    guard let products = output(swiftBuild + ["--show-bin-path"]) else { throw Failure(message: "could not find the build products") }
-    let sysroot = try sdkPath("sdkRootPath", sdk: sdk, triple: triple)
-    var libraries = ["\(sysroot)/usr/lib/\(ndkLibraryDirectory(arch))/libc++_shared.so"]
-    libraries += sharedLibraries(in: products)
-
-    let isStatic = invocation.buildArguments.contains("--static-swift-stdlib")
-    let runtime = isStatic ? [] : sharedLibraries(in: try sdkPath("swiftResourcesPath", sdk: sdk, triple: triple) + "/android")
+    let built = try buildProduct(invocation)
+    let (product, arch, sdk, products, libraries, runtime) = (built.product, built.arch, built.sdk, built.products, built.libraries, built.runtime)
 
     // A library product is an app; an executable product runs from the shell.
     if !FileManager.default.fileExists(atPath: "\(products)/\(product)") {
@@ -218,6 +235,7 @@ enum SwiftAndroid {
             case "build": _ = try build(Invocation(Array(arguments.dropFirst()), takesProduct: false))
             case "run": try runOnDevice(Invocation(Array(arguments.dropFirst()), takesProduct: true))
             case "install": try install()
+            case "aar": try aar(Invocation(Array(arguments.dropFirst()), takesProduct: true))
             case "wrap": try wrap(Array(arguments.dropFirst()))
             case "generate": try generate(Array(arguments.dropFirst()))  // run by the build plugin
             default: print(usage)

@@ -26,6 +26,8 @@ swift android run HelloActivity    # build, package an APK, install, launch
 
 No Java, Kotlin or Gradle project. See [Examples/HelloActivity](Examples/HelloActivity).
 
+Every verb is a short list of ordinary commands: [docs/BY-HAND.md](docs/BY-HAND.md) lists them, to run or check yourself.
+
 ## Install
 
 Needs a swift.org toolchain, the matching [Swift SDK for Android](https://www.swift.org/documentation/articles/swift-sdk-for-android-getting-started.html),
@@ -43,6 +45,7 @@ That symlinks the built tool into the active toolchain. Repeat after installing 
 |---|---|
 | `swift android build` | Cross-compile the package. Other options go to `swift build`. |
 | `swift android run <product> [args]` | An executable runs from the device's shell and returns its exit status. A dynamic library is packaged as an app, installed and launched. |
+| `swift android aar <product>` | Package a dynamic library as `<product>.aar` for a Gradle app: `implementation(files("libs/<product>.aar"))`. `-c release` strips it. |
 | `swift android wrap <target> [java.class …]` | Generate Swift wrappers for Java classes into `Sources/<target>/Generated`. |
 | `swift android install` | Link the tool into the active toolchain. |
 
@@ -112,4 +115,4 @@ a Swift subclass of Minecraft's `Screen`, with Gradle compiling the generated Ja
 - The APK carries the whole Swift runtime uncompressed (about 125 MB) and one architecture.
 - `print` goes nowhere in an app; there is no logcat bridge yet.
 - Kotlin sources are not compiled (Java only): there is no `kotlinc` step.
-- No AndroidManifest generation, no `.aar` output, no release signing.
+- No AndroidManifest generation for apps, no release signing. An `.aar` holds one architecture.

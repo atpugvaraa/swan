@@ -57,25 +57,7 @@ func runApp(product: String, abi: String, api: String, libraries: [String], prod
 
     // Java sources: javac to .class, d8 to classes.dex.
     var contents = ["lib"]
-    var java = files(under: "\(source)/java", withExtension: "java")
-    // Java subclasses the build plugin wrote for Swift classes. Other configurations leave their
-    // own copies behind, so take the one this build just wrote.
-    let generated = (output(["find", ".build", "-type", "d", "-name", "swan-java", "-not", "-path", "*/checkouts/*"]) ?? "")
-        .split(separator: "\n").map(String.init)
-    let modified = { (path: String) in (try? fm.attributesOfItem(atPath: path)[.modificationDate] as? Date) ?? .distantPast }
-    if let newest = generated.max(by: { modified($0) < modified($1) }) {
-        java += files(under: newest, withExtension: "java")
-    }
-    // Java bindings swift-java's JExtractSwiftPlugin wrote for the package's Swift API, and the
-    // SwiftKit classes they are built on, compiled from source: nothing to publish to Maven first.
-    let extracted = (output(["find", ".build/plugins", "-type", "d", "-path", "*JExtractSwiftPlugin/src/generated/java"]) ?? "")
-        .split(separator: "\n").map(String.init)
-    if !extracted.isEmpty {
-        for directory in extracted { java += files(under: directory, withExtension: "java") }
-        java += files(under: ".build/checkouts/swift-java/SwiftKitCore/src/main/java", withExtension: "java")
-    }
-    if !java.isEmpty {
-        try run(["javac", "--release", "17", "-Xlint:-options", "-classpath", androidJar, "-d", "\(stage)/classes"] + java)
+    if try compileJava(from: source, into: "\(stage)/classes", androidJar: androidJar) {
         try run(["\(tools)/d8", "--lib", androidJar, "--min-api", api, "--output", stage]
             + files(under: "\(stage)/classes", withExtension: "class"))
         contents.append("classes.dex")
@@ -115,4 +97,93 @@ func runApp(product: String, abi: String, api: String, libraries: [String], prod
 /// `aarch64` (what a triple wants) to `arm64-v8a` (the directory an APK wants).
 func abi(forArch arch: String) -> String {
     ["aarch64": "arm64-v8a", "armv7": "armeabi-v7a"][arch] ?? arch
+}
+
+/// Compiles every Java source the package has or generated. False when there is none.
+func compileJava(from source: String, into classes: String, androidJar: String) throws -> Bool {
+    let fm = FileManager.default
+    var java = files(under: "\(source)/java", withExtension: "java")
+    // Java subclasses the build plugin wrote for Swift classes. Other configurations leave their
+    // own copies behind, so take the one this build just wrote.
+    let generated = (output(["find", ".build", "-type", "d", "-name", "swan-java", "-not", "-path", "*/checkouts/*"]) ?? "")
+        .split(separator: "\n").map(String.init)
+    let modified = { (path: String) in (try? fm.attributesOfItem(atPath: path)[.modificationDate] as? Date) ?? .distantPast }
+    if let newest = generated.max(by: { modified($0) < modified($1) }) {
+        java += files(under: newest, withExtension: "java")
+    }
+    // Java bindings swift-java's JExtractSwiftPlugin wrote for the package's Swift API, and the
+    // SwiftKit classes they are built on, compiled from source: nothing to publish to Maven first.
+    let extracted = (output(["find", ".build/plugins", "-type", "d", "-path", "*JExtractSwiftPlugin/src/generated/java"]) ?? "")
+        .split(separator: "\n").map(String.init)
+    if !extracted.isEmpty {
+        for directory in extracted { java += files(under: directory, withExtension: "java") }
+        java += files(under: ".build/checkouts/swift-java/SwiftKitCore/src/main/java", withExtension: "java")
+    }
+    guard !java.isEmpty else { return false }
+    try run(["javac", "--release", "17", "-Xlint:-options", "-classpath", androidJar, "-d", classes] + java)
+    return true
+}
+
+/// `swift android aar`: an Android library archive a Gradle app can depend on.
+///
+///     AndroidManifest.xml   names the library's package
+///     classes.jar           compiled Java (empty when the package has none)
+///     jni/<abi>/*.so        the Swift libraries
+///     assets/               the package's Android/assets, if any
+func aar(_ parsed: Invocation) throws {
+    // Nothing runs, so words after the product are more options, not a program's arguments.
+    var invocation = parsed
+    let trailing = try Invocation(parsed.programArguments, takesProduct: false)
+    invocation.buildArguments += trailing.buildArguments
+    invocation.arch = trailing.arch ?? parsed.arch
+    if trailing.api != "28" { invocation.api = trailing.api }  // 28 is the default
+    let built = try buildProduct(invocation)
+    let fm = FileManager.default
+    let source = fm.currentDirectoryPath + "/Android"
+    let home = try androidHome()
+    let androidJar = try newest(in: "\(home)/platforms") + "/android.jar"
+    let abi = abi(forArch: built.arch)
+
+    let stage = "\(built.products)/\(built.product).aar-stage"
+    let archive = "\(built.products)/\(built.product).aar"
+    try? fm.removeItem(atPath: stage)
+    try? fm.removeItem(atPath: archive)
+    try fm.createDirectory(atPath: "\(stage)/jni/\(abi)", withIntermediateDirectories: true)
+    try fm.createDirectory(atPath: "\(stage)/classes", withIntermediateDirectories: true)
+
+    // Release builds are stripped: debug info is most of a Swift library's size. llvm-strip sits
+    // in the NDK that the SDK's sysroot links to.
+    let ndkLibraries = URL(fileURLWithPath: built.libraries[0]).deletingLastPathComponent().resolvingSymlinksInPath()
+    let strip = ndkLibraries.appendingPathComponent("../../../../bin/llvm-strip").standardized.path
+    let release = invocation.buildArguments.contains("release")
+    for library in built.libraries + built.runtime {
+        let name = (library as NSString).lastPathComponent
+        if release, name != "libc++_shared.so" {
+            try run([strip, "-o", "\(stage)/jni/\(abi)/\(name)", library])
+        } else {
+            try fm.copyItem(atPath: library, toPath: "\(stage)/jni/\(abi)/\(name)")
+        }
+    }
+
+    _ = try compileJava(from: source, into: "\(stage)/classes", androidJar: androidJar)
+    try run(["jar", "--create", "--file", "\(stage)/classes.jar", "-C", "\(stage)/classes", "."])
+    try fm.removeItem(atPath: "\(stage)/classes")
+
+    if fm.fileExists(atPath: "\(source)/AndroidManifest.xml") {
+        try fm.copyItem(atPath: "\(source)/AndroidManifest.xml", toPath: "\(stage)/AndroidManifest.xml")
+    } else {
+        try """
+            <?xml version="1.0" encoding="utf-8"?>
+            <manifest xmlns:android="http://schemas.android.com/apk/res/android" package="swift.\(built.product.lowercased())">
+                <uses-sdk android:minSdkVersion="\(invocation.api)" />
+            </manifest>
+
+            """.write(toFile: "\(stage)/AndroidManifest.xml", atomically: true, encoding: .utf8)
+    }
+    if fm.fileExists(atPath: "\(source)/assets") { try fm.copyItem(atPath: "\(source)/assets", toPath: "\(stage)/assets") }
+    try "".write(toFile: "\(stage)/R.txt", atomically: true, encoding: .utf8)  // Gradle expects one, even empty
+
+    try run(["sh", "-c", "cd '\(stage)' && zip -q -r '\(archive)' ."])
+    try fm.removeItem(atPath: stage)
+    print(archive)
 }
